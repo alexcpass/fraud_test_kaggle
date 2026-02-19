@@ -22,13 +22,14 @@ def load_data():
     file_name = 'data.csv'
     df = pd.read_csv(file_name)
     
+    # Tratamento de Datas e Idade
     df['trans_date_trans_time'] = pd.to_datetime(df['trans_date_trans_time'], dayfirst=True, errors='coerce')
     df['hour'] = df['trans_date_trans_time'].dt.hour
     df['dob'] = pd.to_datetime(df['dob'], dayfirst=True, errors='coerce')
     df['age'] = (datetime.now() - df['dob']).dt.days // 365
     
     def haversine(lat1, lon1, lat2, lon2):
-        r = 6371
+        r = 6371 # km
         phi1, phi2 = np.radians(lat1), np.radians(lat2)
         dphi = np.radians(lat2 - lat1)
         dlambda = np.radians(lon2 - lon1)
@@ -37,6 +38,7 @@ def load_data():
 
     df['dist_km'] = haversine(df['lat'], df['long'], df['merch_lat'], df['merch_long'])
     
+    # Estatística: Z-Score
     df['avg_cat_amt'] = df.groupby('category')['amt'].transform('mean')
     df['std_cat_amt'] = df.groupby('category')['amt'].transform('std')
     df['z_score_amt'] = (df['amt'] - df['avg_cat_amt']) / (df['std_cat_amt'] + 1e-9)
@@ -53,8 +55,8 @@ df = load_data()
 # 3. SIDEBAR
 st.sidebar.title("🛡️ Fraud Sentinel Pro")
 st.sidebar.markdown("---")
-categorias = st.sidebar.multiselect("Categorias", df['category'].unique(), default=df['category'].unique())
-anomalias_apenas = st.sidebar.checkbox("Exibir apenas Alertas")
+categorias = st.sidebar.multiselect("Categories", df['category'].unique(), default=df['category'].unique())
+anomalias_apenas = st.sidebar.checkbox("Show Alerts Only")
 
 df_filtered = df[df['category'].isin(categorias)]
 if anomalias_apenas:
@@ -62,21 +64,21 @@ if anomalias_apenas:
 
 # 4. CABEÇALHO
 st.title("Fraud Monitoring & Advanced Analytics")
-st.caption(f"Análise de Risco Geossocial e Estatístico | Desenvolvido por Alexandre C. Passos")
+st.caption(f"US Market Analysis | Strategic Risk Intelligence | Developed by Alexandre C. Passos")
 
-# 5. KPIS
+# 5. KPIS (FORMATADOS EM DÓLAR)
 m1, m2, m3, m4, m5 = st.columns(5)
 with m1:
-    st.metric("Volume Filtrado", f"R$ {df_filtered['amt'].sum():,.0f}")
+    st.metric("Total Volume", f"$ {df_filtered['amt'].sum():,.2f}")
 with m2:
     fraud_rate = (df_filtered['is_fraud'].mean() * 100)
-    st.metric("Taxa de Fraude", f"{fraud_rate:.2f}%", delta="-0.15%", delta_color="inverse")
+    st.metric("Fraud Rate", f"{fraud_rate:.2f}%", delta="-0.15%", delta_color="inverse")
 with m3:
-    st.metric("Distância Média", f"{df_filtered['dist_km'].mean():.1f} km")
+    st.metric("Avg Distance", f"{df_filtered['dist_km'].mean():.1f} km")
 with m4:
-    st.metric("Anomalias Gasto", int(df_filtered['is_value_anomaly'].sum()), delta="Z-Score > 2", delta_color="inverse")
+    st.metric("Value Anomalies", int(df_filtered['is_value_anomaly'].sum()), delta="Z-Score > 2", delta_color="inverse")
 with m5:
-    st.metric("Alertas Distância", int(df_filtered['is_dist_anomaly'].sum()), delta="Outliers Geo", delta_color="inverse")
+    st.metric("Geo Outliers", int(df_filtered['is_dist_anomaly'].sum()), delta="Above 2σ", delta_color="inverse")
 
 st.divider()
 
@@ -84,7 +86,7 @@ st.divider()
 col_map, col_stats = st.columns([2, 1])
 
 with col_map:
-    st.subheader("📍 Mapeamento Geográfico de Risco")
+    st.subheader("📍 Geographical Risk Mapping")
     fig_map = px.scatter_mapbox(df_filtered, lat="lat", lon="long", color="is_fraud", 
                                 size="amt", color_continuous_scale=["#00f2ff", "#ff3131"],
                                 mapbox_style="carto-darkmatter", zoom=3, height=450)
@@ -92,7 +94,7 @@ with col_map:
     st.plotly_chart(fig_map, use_container_width=True)
 
 with col_stats:
-    st.subheader("📊 Distribuição Z-Score")
+    st.subheader("📊 Z-Score Distribution")
     fig_hist = px.histogram(df_filtered, x="z_score_amt", color="is_fraud",
                             nbins=25, color_discrete_sequence=["#00f2ff", "#ff3131"])
     fig_hist.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False, height=450)
@@ -100,34 +102,33 @@ with col_stats:
 
 # 7. MATRIZ DE RISCO (HEATMAP)
 st.divider()
-st.subheader("🕒 Matriz de Risco: Hora do Dia vs. Perfil Demográfico")
+st.subheader("🕒 Risk Matrix: Hour of Day vs. Demographic Profile")
 
 bins = [0, 25, 40, 60, 100]
-labels = ['Jovens (0-25)', 'Adultos (26-40)', 'Sêniors (41-60)', 'Idosos (60+)']
+labels = ['Youth (0-25)', 'Adult (26-40)', 'Senior (41-60)', 'Elderly (60+)']
 df_filtered['age_group'] = pd.cut(df_filtered['age'], bins=bins, labels=labels)
 
 heatmap_data = df_filtered.pivot_table(index='age_group', columns='hour', values='is_fraud', aggfunc='sum').fillna(0)
 
-fig_heatmap = px.imshow(heatmap_data, labels=dict(x="Hora do Dia", y="Perfil", color="Fraudes"),
+fig_heatmap = px.imshow(heatmap_data, labels=dict(x="Hour of Day", y="Profile", color="Frauds"),
                         x=heatmap_data.columns, y=heatmap_data.index,
                         color_continuous_scale='Reds', aspect="auto")
 fig_heatmap.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color="white")
 st.plotly_chart(fig_heatmap, use_container_width=True)
 
-# 8. TABELA DE AUDITORIA (VERSÃO COMPATÍVEL)
+# 8. TABELA DE AUDITORIA (FORMATADA EM DÓLAR)
 st.divider()
-st.subheader("🕵️ Tabela de Investigação (Top Alertas)")
+st.subheader("🕵️ Investigation Table (Top Alerts)")
 audit_df = df_filtered[['trans_date_trans_time', 'category', 'amt', 'dist_km', 'z_score_amt', 'is_fraud']]
 audit_df = audit_df.sort_values(by='z_score_amt', ascending=False).head(20)
 
-# Formatação direta via st.column_config (Mais robusto e moderno)
 st.dataframe(
     audit_df,
     column_config={
-        "amt": st.column_config.NumberColumn("Valor", format="R$ %.2f"),
-        "dist_km": st.column_config.NumberColumn("Distância", format="%.2f km"),
+        "amt": st.column_config.NumberColumn("Amount", format="$ %.2f"),
+        "dist_km": st.column_config.NumberColumn("Distance", format="%.2f km"),
         "z_score_amt": st.column_config.NumberColumn("Z-Score", format="%.2f"),
-        "is_fraud": st.column_config.CheckboxColumn("Fraude Conf.")
+        "is_fraud": st.column_config.CheckboxColumn("Confirmed")
     },
     use_container_width=True,
     hide_index=True
