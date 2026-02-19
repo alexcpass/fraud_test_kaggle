@@ -19,7 +19,7 @@ st.markdown("""
 @st.cache_data
 def load_data():
     # NOME DO ARQUIVO ATUALIZADO AQUI
-    file_name = 'data.csv'
+    file_name = 'fraudTest_amostra.csv'
     df = pd.read_csv(file_name)
     
     # 1. Tratamento de Datas e Idade
@@ -102,4 +102,5 @@ with col_stats:
 # --- TABELA ---
 st.subheader("🕵️ Detalhes para Auditoria")
 st.dataframe(df_filtered[['trans_date_trans_time', 'category', 'amt', 'dist_km', 'z_score_amt']].sort_values(by='z_score_amt', ascending=False))
+
 
