@@ -23,10 +23,11 @@ def load_data():
     df = pd.read_csv(file_name)
     
     # 1. Tratamento de Datas e Idade
-    df['trans_date_trans_time'] = pd.to_datetime(df['trans_date_trans_time'])
-    df['hour'] = df['trans_date_trans_time'].dt.hour
-    df['dob'] = pd.to_datetime(df['dob'])
-    df['age'] = (datetime.now() - df['dob']).dt.days // 365
+    # 1. Tratamento de Datas e Idade (Ajustado para evitar erro de formato)
+df['trans_date_trans_time'] = pd.to_datetime(df['trans_date_trans_time'], dayfirst=True, errors='coerce')
+df['hour'] = df['trans_date_trans_time'].dt.hour
+df['dob'] = pd.to_datetime(df['dob'], dayfirst=True, errors='coerce')
+df['age'] = (datetime.now() - df['dob']).dt.days // 365365
     
     # 2. Cálculo de Distância (Haversine)
     def haversine(lat1, lon1, lat2, lon2):
@@ -102,5 +103,6 @@ with col_stats:
 # --- TABELA ---
 st.subheader("🕵️ Detalhes para Auditoria")
 st.dataframe(df_filtered[['trans_date_trans_time', 'category', 'amt', 'dist_km', 'z_score_amt']].sort_values(by='z_score_amt', ascending=False))
+
 
 
