@@ -4,10 +4,10 @@ import plotly.express as px
 import numpy as np
 from datetime import datetime
 
-# Configuração da página
+# Configuração da página - Dashboard Premium Dark
 st.set_page_config(page_title="Fraud Sentinel Pro", layout="wide", page_icon="🛡️")
 
-# Estilização Premium Dark
+# Estilização CSS para o modo Dark/Neon
 st.markdown("""
     <style>
     .main { background-color: #05070a; }
@@ -18,18 +18,17 @@ st.markdown("""
 
 @st.cache_data
 def load_data():
-    # NOME DO ARQUIVO ATUALIZADO AQUI
-    file_name = 'fraudTest_amostra.csv'
+    # Carregamento do arquivo unificado
+    file_name = 'data.csv'
     df = pd.read_csv(file_name)
     
-    # 1. Tratamento de Datas e Idade
-    # 1. Tratamento de Datas e Idade (Ajustado para evitar erro de formato)
-df['trans_date_trans_time'] = pd.to_datetime(df['trans_date_trans_time'], dayfirst=True, errors='coerce')
-df['hour'] = df['trans_date_trans_time'].dt.hour
-df['dob'] = pd.to_datetime(df['dob'], dayfirst=True, errors='coerce')
-df['age'] = (datetime.now() - df['dob']).dt.days // 365365
+    # 1. Tratamento de Datas e Idade (Ajustado para formato Dia-Mês-Ano)
+    df['trans_date_trans_time'] = pd.to_datetime(df['trans_date_trans_time'], dayfirst=True, errors='coerce')
+    df['hour'] = df['trans_date_trans_time'].dt.hour
+    df['dob'] = pd.to_datetime(df['dob'], dayfirst=True, errors='coerce')
+    df['age'] = (datetime.now() - df['dob']).dt.days // 365
     
-    # 2. Cálculo de Distância (Haversine)
+    # 2. Função Haversine para cálculo de distância
     def haversine(lat1, lon1, lat2, lon2):
         r = 6371
         phi1, phi2 = np.radians(lat1), np.radians(lat2)
@@ -40,7 +39,7 @@ df['age'] = (datetime.now() - df['dob']).dt.days // 365365
 
     df['dist_km'] = haversine(df['lat'], df['long'], df['merch_lat'], df['merch_long'])
     
-    # 3. Estatística Avançada: Z-Score de Gastos por Categoria
+    # 3. Estatística: Z-Score de Gastos por Categoria
     df['avg_cat_amt'] = df.groupby('category')['amt'].transform('mean')
     df['std_cat_amt'] = df.groupby('category')['amt'].transform('std')
     df['z_score_amt'] = (df['amt'] - df['avg_cat_amt']) / df['std_cat_amt']
@@ -53,9 +52,10 @@ df['age'] = (datetime.now() - df['dob']).dt.days // 365365
     
     return df
 
+# Execução do carregamento
 df = load_data()
 
-# --- SIDEBAR ---
+# --- SIDEBAR (FILTROS) ---
 st.sidebar.title("🛡️ Filtros Sentinel")
 categorias = st.sidebar.multiselect("Categorias", df['category'].unique(), default=df['category'].unique())
 anomalias_apenas = st.sidebar.checkbox("Exibir apenas Anomalias (Alertas)")
@@ -68,7 +68,7 @@ if anomalias_apenas:
 st.title("Fraud Monitoring & Advanced Analytics")
 st.caption("Sistema de Detecção de Anomalias Estatísticas | Analista: Alexandre C. Passos")
 
-# --- MÉTRICAS ---
+# --- MÉTRICAS (CARDS) ---
 m1, m2, m3, m4, m5 = st.columns(5)
 with m1:
     st.metric("Total Transacionado", f"R$ {df_filtered['amt'].sum():,.2f}")
@@ -77,9 +77,9 @@ with m2:
 with m3:
     st.metric("Distância Média", f"{df_filtered['dist_km'].mean():.1f} km")
 with m4:
-    st.metric("Anomalias de Gasto", df_filtered['is_value_anomaly'].sum())
+    st.metric("Anomalias de Gasto", int(df_filtered['is_value_anomaly'].sum()))
 with m5:
-    st.metric("Alertas de Distância", df_filtered['is_dist_anomaly'].sum())
+    st.metric("Alertas de Distância", int(df_filtered['is_dist_anomaly'].sum()))
 
 st.divider()
 
@@ -87,22 +87,22 @@ st.divider()
 col_map, col_stats = st.columns([2, 1])
 
 with col_map:
-    st.subheader("📍 Mapeamento Geográfico")
+    st.subheader("📍 Mapeamento Geográfico de Risco")
     fig_map = px.scatter_mapbox(df_filtered, lat="lat", lon="long", color="is_fraud", 
                                 size="amt", color_continuous_scale=["#00f2ff", "#ff3131"],
                                 mapbox_style="carto-darkmatter", zoom=3, height=500)
+    fig_map.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
     st.plotly_chart(fig_map, use_container_width=True)
 
 with col_stats:
-    st.subheader("📊 Curva de Desvio (Z-Score)")
+    st.subheader("📊 Distribuição Z-Score")
     fig_hist = px.histogram(df_filtered, x="z_score_amt", color="is_fraud",
                             nbins=30, color_discrete_sequence=["#00f2ff", "#ff3131"])
     fig_hist.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', showlegend=False)
     st.plotly_chart(fig_hist, use_container_width=True)
 
-# --- TABELA ---
+# --- TABELA DE AUDITORIA ---
 st.subheader("🕵️ Detalhes para Auditoria")
-st.dataframe(df_filtered[['trans_date_trans_time', 'category', 'amt', 'dist_km', 'z_score_amt']].sort_values(by='z_score_amt', ascending=False))
-
-
-
+st.dataframe(df_filtered[['trans_date_trans_time', 'category', 'amt', 'dist_km', 'z_score_amt', 'is_fraud']]
+             .sort_values(by='z_score_amt', ascending=False)
+             .style.format({'amt': 'R$ {:.2f}', 'dist_km': '{:.2f} km', 'z_score_amt': '{:.2f}'}))
